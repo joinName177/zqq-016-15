@@ -16,11 +16,17 @@ const PRESETS = [
 
 let currentTree: CounterfactualTree = treeAdapter.createTree(PRESETS[0]);
 let isCabinetOpen = false;
+// 待确认的浇水目标：仅保存 nodeId，预览数据每次渲染时由引擎纯计算得出。
+// 取消时清空即可，树与操作记录从未被改动，不会留下半完成状态。
+let pendingWaterNodeId: string | null = null;
 
 const rootEl = document.getElementById('app')!;
 
 function refreshView() {
   const specimens = specimenAdapter.getAll();
+  const waterPreview = pendingWaterNodeId
+    ? treeAdapter.previewWater(currentTree, pendingWaterNodeId)
+    : null;
 
   renderTreeApp(
     rootEl,
@@ -28,17 +34,35 @@ function refreshView() {
     specimens,
     isCabinetOpen,
     PRESETS,
+    waterPreview,
     {
       onGrowNewTree: (assumption: string) => {
         currentTree = treeAdapter.createTree(assumption);
+        pendingWaterNodeId = null;
         refreshView();
       },
-      onWaterNode: (nodeId: string) => {
+      onRequestWater: (nodeId: string) => {
+        pendingWaterNodeId = nodeId;
+        refreshView();
+      },
+      onConfirmWater: (nodeId: string) => {
+        // 确认后才真正更新树与浇水操作记录（不可变更新）
         currentTree = treeAdapter.water(currentTree, nodeId);
+        pendingWaterNodeId = null;
+        refreshView();
+      },
+      onCancelWater: () => {
+        pendingWaterNodeId = null;
+        refreshView();
+      },
+      onUndoLastWater: () => {
+        currentTree = treeAdapter.undoLastWater(currentTree);
+        pendingWaterNodeId = null;
         refreshView();
       },
       onPruneNode: (nodeId: string) => {
         currentTree = treeAdapter.prune(currentTree, nodeId);
+        pendingWaterNodeId = null;
         refreshView();
       },
       onHarvestNode: (nodeId: string) => {

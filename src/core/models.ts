@@ -30,6 +30,34 @@ export interface LifeSpecimen {
   harvestedAt: string;
 }
 
+export interface WaterRecord {
+  id: string;
+  nodeId: string;
+  nodeTitle: string;
+  vitalityBefore: number;
+  vitalityAfter: number;
+  waterCountBefore: number;
+  waterCountAfter: number;
+  sproutedNodeId?: string;
+  sproutedNodeTitle?: string;
+  undone: boolean;
+  createdAt: string;
+}
+
+export interface WaterPreview {
+  nodeId: string;
+  nodeTitle: string;
+  eraLabel: string;
+  categoryName: string;
+  vitalityBefore: number;
+  vitalityAfter: number;
+  vitalityDelta: number;
+  waterCountBefore: number;
+  waterCountAfter: number;
+  willSprout: boolean;
+  sproutedNodeTitle: string;
+}
+
 export interface CounterfactualTree {
   id: string;
   assumption: string;
@@ -37,4 +65,5 @@ export interface CounterfactualTree {
   nodes: Record<string, LifeNode>;
   createdAt: string;
   specimens: LifeSpecimen[];
+  waterHistory: WaterRecord[];
 }

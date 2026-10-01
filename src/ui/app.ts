@@ -1,8 +1,11 @@
-import { CounterfactualTree, LifeSpecimen, LifeNode } from '../core/models';
+import { CounterfactualTree, LifeSpecimen, LifeNode, WaterPreview } from '../core/models';
 
 export interface TreeUIHandlers {
   onGrowNewTree: (assumption: string) => void;
-  onWaterNode: (nodeId: string) => void;
+  onRequestWater: (nodeId: string) => void;
+  onConfirmWater: (nodeId: string) => void;
+  onCancelWater: () => void;
+  onUndoLastWater: () => void;
   onPruneNode: (nodeId: string) => void;
   onHarvestNode: (nodeId: string) => void;
   onDeleteSpecimen: (id: string) => void;
@@ -15,6 +18,7 @@ export function renderTreeApp(
   specimens: LifeSpecimen[],
   isCabinetOpen: boolean,
   presets: string[],
+  waterPreview: WaterPreview | null,
   handlers: TreeUIHandlers
 ) {
   const esc = (s: string) =>
@@ -62,7 +66,7 @@ export function renderTreeApp(
         <div class="tree-header">
           <h2>🌳 当前反事实时空谱系：${esc(tree.assumption)}</h2>
           <span style="font-size:12px;color:var(--text-muted);">
-            提示：点击【💧浇水】注入可能性能量，点击【✂️修剪】减除不想要的走向，点击【📌采集】定格标本
+            提示：点击【💧浇水】确认后注入可能性能量（可在下方操作记录中撤销），点击【✂️修剪】减除不想要的走向，点击【📌采集】定格标本
           </span>
         </div>
 
@@ -108,6 +112,81 @@ export function renderTreeApp(
             .join('')}
         </div>
       </main>
+
+      <!-- Watering Operation Records -->
+      <section class="water-log">
+        <div class="water-log-header">
+          <h3>💧 浇水操作记录</h3>
+          <button class="btn-action btn-undo" id="btnUndoWater"
+            ${tree.waterHistory.some(r => !r.undone) ? '' : 'disabled'}>
+            ↩ 撤销最近一次浇水
+          </button>
+        </div>
+        ${
+          tree.waterHistory.length === 0
+            ? `<p class="water-log-empty">尚无浇水记录。对节点执行浇水并确认后，记录将在此留痕，可随时撤销。</p>`
+            : `
+          <ul class="water-log-list">
+            ${[...tree.waterHistory].reverse().map(r => `
+              <li class="water-log-item ${r.undone ? 'undone' : ''}">
+                <div class="water-log-main">
+                  <span class="water-log-title">${esc(r.nodeTitle)}</span>
+                  <span class="water-log-detail">
+                    生命力 ${r.vitalityBefore} → ${r.vitalityAfter}
+                    （+${r.vitalityAfter - r.vitalityBefore}）
+                    · 浇水次数 ${r.waterCountBefore} → ${r.waterCountAfter}
+                    ${r.sproutedNodeTitle ? `· ✨ 催生「${esc(r.sproutedNodeTitle)}」` : ''}
+                  </span>
+                </div>
+                <span class="water-log-meta">
+                  ${esc(r.createdAt)}${r.undone ? ' · 已撤销' : ''}
+                </span>
+              </li>
+            `).join('')}
+          </ul>`
+        }
+      </section>
+
+      <!-- Water Confirmation Modal -->
+      ${
+        waterPreview
+          ? `
+        <div class="modal-overlay" id="waterConfirmOverlay">
+          <div class="modal-content water-confirm-content">
+            <div class="water-confirm-header">
+              <h2>💧 浇水确认</h2>
+            </div>
+            <div class="water-confirm-body">
+              <div class="water-confirm-row">
+                <span class="water-confirm-label">目标节点</span>
+                <div class="water-confirm-target">
+                  <span class="node-category-tag" style="--cat-color: var(--leaf);">${esc(waterPreview.categoryName)}</span>
+                  <strong>${esc(waterPreview.nodeTitle)}</strong>
+                  <span class="water-confirm-era">${esc(waterPreview.eraLabel)}</span>
+                </div>
+              </div>
+              <div class="water-confirm-row">
+                <span class="water-confirm-label">预计变化</span>
+                <ul class="water-confirm-changes">
+                  <li>生命力：<strong>${waterPreview.vitalityBefore}</strong> → <strong class="change-positive">${waterPreview.vitalityAfter}</strong>
+                    （+${waterPreview.vitalityDelta}）</li>
+                  <li>浇水次数：<strong>${waterPreview.waterCountBefore}</strong> → <strong class="change-positive">${waterPreview.waterCountAfter}</strong></li>
+                  ${
+                    waterPreview.willSprout
+                      ? `<li class="change-sprout">✨ 将催生奇遇枝桠：「${esc(waterPreview.sproutedNodeTitle)}」</li>`
+                      : ''
+                  }
+                </ul>
+              </div>
+            </div>
+            <div class="water-confirm-actions">
+              <button class="btn-action btn-water-cancel" id="btnCancelWater">取消</button>
+              <button class="cabinet-btn" id="btnConfirmWater">确认浇水</button>
+            </div>
+          </div>
+        </div>`
+          : ''
+      }
 
       <!-- Specimen Cabinet Modal -->
       ${
@@ -192,12 +271,28 @@ export function renderTreeApp(
     });
   });
 
-  // Action buttons on nodes
+  // Action buttons on nodes — watering goes through a confirmation modal first
   container.querySelectorAll('.btn-water').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      if (id) handlers.onWaterNode(id);
+      if (id) handlers.onRequestWater(id);
     });
+  });
+
+  container.querySelector('#btnUndoWater')?.addEventListener('click', () => {
+    handlers.onUndoLastWater();
+  });
+
+  // Water confirmation modal
+  const waterOverlayEl = container.querySelector('#waterConfirmOverlay');
+  waterOverlayEl?.addEventListener('click', e => {
+    if (e.target === waterOverlayEl) handlers.onCancelWater();
+  });
+  container.querySelector('#btnCancelWater')?.addEventListener('click', () => {
+    handlers.onCancelWater();
+  });
+  container.querySelector('#btnConfirmWater')?.addEventListener('click', () => {
+    if (waterPreview) handlers.onConfirmWater(waterPreview.nodeId);
   });
 
   container.querySelectorAll('.btn-prune').forEach(btn => {

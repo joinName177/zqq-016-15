@@ -438,3 +438,207 @@ body {
   color: var(--rose);
   cursor: pointer;
 }
+
+/* Watering Operation Records */
+.water-log {
+  background: var(--tree-panel);
+  border: 1px solid var(--tree-border);
+  border-radius: 12px;
+  padding: 22px 26px;
+  margin-top: 28px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.water-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--tree-border);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.water-log-header h3 {
+  font-size: 16px;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.btn-undo {
+  font-size: 12px;
+  padding: 6px 12px;
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.btn-undo:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.btn-undo:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.water-log-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.water-log-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.water-log-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--tree-card);
+  border: 1px solid var(--tree-border);
+  border-left: 3px solid #38bdf8;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.water-log-item.undone {
+  opacity: 0.4;
+  border-left-color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-muted);
+}
+
+.water-log-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.water-log-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.water-log-item.undone .water-log-title {
+  color: var(--text-muted);
+}
+
+.water-log-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.water-log-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Water Confirmation Modal */
+.water-confirm-content {
+  max-width: 520px;
+  padding: 0;
+  border-color: #38bdf8;
+  box-shadow: 0 10px 40px rgba(56, 189, 248, 0.2);
+}
+
+.water-confirm-header {
+  border-bottom: 1px solid var(--tree-border);
+  padding: 20px 28px;
+}
+
+.water-confirm-header h2 {
+  font-size: 20px;
+  color: #38bdf8;
+}
+
+.water-confirm-body {
+  padding: 22px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.water-confirm-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.water-confirm-label {
+  flex-shrink: 0;
+  width: 64px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  padding-top: 2px;
+}
+
+.water-confirm-target {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.water-confirm-target .node-category-tag {
+  width: fit-content;
+  margin-bottom: 0;
+  color: var(--leaf);
+  border-color: var(--leaf);
+}
+
+.water-confirm-target strong {
+  font-size: 15px;
+  color: #fff;
+  line-height: 1.4;
+}
+
+.water-confirm-era {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.water-confirm-changes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.change-positive {
+  color: var(--leaf);
+}
+
+.change-sprout {
+  color: #c9a2f5;
+  font-weight: 700;
+}
+
+.water-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--tree-border);
+  padding: 16px 28px;
+}
+
+.btn-water-cancel {
+  padding: 8px 20px;
+  font-size: 13px;
+  border-color: var(--rose);
+  color: var(--rose);
+}
+
+.btn-water-cancel:hover {
+  background: rgba(214, 117, 104, 0.12);
+  border-color: var(--rose);
+  color: var(--rose);
+}

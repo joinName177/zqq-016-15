@@ -2,8 +2,13 @@ import {
   CounterfactualTree,
   LifeNode,
   LifeSpecimen,
-  LifeCategory
+  LifeCategory,
+  WaterRecord,
+  WaterPreview
 } from './models';
+
+export const WATER_VITALITY_GAIN = 20;
+export const SPROUT_WATER_THRESHOLD = 2;
 
 const ERA_LABELS = ['起点分歧点', '+1年·涟漪微漾', '+3年·风向转折', '+5年·航道分野', '+10年·宿命标本'];
 
@@ -147,42 +152,150 @@ export function buildCounterfactualTree(assumption: string): CounterfactualTree 
     rootId,
     nodes,
     createdAt: new Date().toLocaleDateString('zh-CN'),
-    specimens: []
+    specimens: [],
+    waterHistory: []
   };
 }
 
+/** 是否将在本次浇水后催生出奇遇枝桠（规则的唯一事实来源，预览与提交共用） */
+function willSproutSerendipity(node: LifeNode): boolean {
+  return (
+    node.waterCount + 1 === SPROUT_WATER_THRESHOLD &&
+    node.layerIndex < 3 &&
+    node.childrenIds.length < 2
+  );
+}
+
+/**
+ * 纯预览：只计算"若执行浇水"的预计变化，不触碰树的任何状态。
+ * 取消确认时，树与操作记录都不会产生任何中间残留。
+ */
+export function previewWater(tree: CounterfactualTree, nodeId: string): WaterPreview | null {
+  const target = tree.nodes[nodeId];
+  if (!target) return null;
+
+  const vitalityAfter = Math.min(100, target.vitality + WATER_VITALITY_GAIN);
+  const willSprout = willSproutSerendipity(target);
+
+  return {
+    nodeId: target.id,
+    nodeTitle: target.title,
+    eraLabel: target.eraLabel,
+    categoryName: target.categoryName,
+    vitalityBefore: target.vitality,
+    vitalityAfter,
+    vitalityDelta: vitalityAfter - target.vitality,
+    waterCountBefore: target.waterCount,
+    waterCountAfter: target.waterCount + 1,
+    willSprout,
+    sproutedNodeTitle: '因浇水而盛放的意外分支：突发奇遇'
+  };
+}
+
+/** 构造奇遇节点（waterBranch 内部使用，保持不可变更新） */
+function createSerendipityNode(parent: LifeNode, newId: string): LifeNode {
+  const nextLayer = parent.layerIndex + 1;
+  const cat: LifeCategory = 'twist';
+  return {
+    id: newId,
+    parentId: parent.id,
+    layerIndex: nextLayer,
+    eraLabel: `${ERA_LABELS[nextLayer]}·奇遇枝桠`,
+    title: '因浇水而盛放的意外分支：突发奇遇',
+    scenarioDescription:
+      '生命在持续的滋养中孕育出意想不到的转折——一位旅人带来的消息彻底重构了你的人生构想。',
+    vitality: 88,
+    isPruned: false,
+    waterCount: 0,
+    category: cat,
+    categoryName: CATEGORY_MAP[cat].name,
+    color: CATEGORY_MAP[cat].color,
+    specimenQuote: '“当你足够专注地灌溉，奇迹就会在干涸的断枝上抽芽。”',
+    childrenIds: []
+  };
+}
+
+/**
+ * 提交一次浇水（不可变更新）：更新目标节点，必要时催生奇遇枝桠，
+ * 并向操作记录追加一条浇水日志。返回新的树对象，原树不被修改。
+ */
 export function waterBranch(tree: CounterfactualTree, nodeId: string): CounterfactualTree {
   const target = tree.nodes[nodeId];
   if (!target) return tree;
 
-  target.vitality = Math.min(100, target.vitality + 20);
-  target.waterCount += 1;
+  const preview = previewWater(tree, nodeId)!;
+  const wateredNode: LifeNode = {
+    ...target,
+    vitality: preview.vitalityAfter,
+    waterCount: preview.waterCountAfter,
+    childrenIds: [...target.childrenIds]
+  };
 
-  // If watered 2 times and in layer 1 or 2, sprout a serendipity branch!
-  if (target.waterCount === 2 && target.layerIndex < 3 && target.childrenIds.length < 2) {
-    const newId = `node-${target.layerIndex + 1}-twist-${Date.now().toString(36).slice(-4)}`;
-    const nextLayer = target.layerIndex + 1;
-    const cat: LifeCategory = 'twist';
-    tree.nodes[newId] = {
-      id: newId,
-      parentId: target.id,
-      layerIndex: nextLayer,
-      eraLabel: `${ERA_LABELS[nextLayer]}·奇遇枝桠`,
-      title: '因浇水而盛放的意外分支：突发奇遇',
-      scenarioDescription: '生命在持续的滋养中孕育出意想不到的转折——一位旅人带来的消息彻底重构了你的人生构想。',
-      vitality: 88,
-      isPruned: false,
-      waterCount: 0,
-      category: cat,
-      categoryName: CATEGORY_MAP[cat].name,
-      color: CATEGORY_MAP[cat].color,
-      specimenQuote: '“当你足够专注地灌溉，奇迹就会在干涸的断枝上抽芽。”',
-      childrenIds: []
-    };
-    target.childrenIds.push(newId);
+  const nodes: Record<string, LifeNode> = { ...tree.nodes, [nodeId]: wateredNode };
+
+  let sproutedNodeId: string | undefined;
+  let sproutedNodeTitle: string | undefined;
+  if (preview.willSprout) {
+    const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    sproutedNodeId = `node-${target.layerIndex + 1}-twist-${nonce}`;
+    sproutedNodeTitle = preview.sproutedNodeTitle;
+    const sprout = createSerendipityNode(wateredNode, sproutedNodeId);
+    nodes[sproutedNodeId] = sprout;
+    wateredNode.childrenIds.push(sproutedNodeId);
   }
 
-  return { ...tree };
+  const record: WaterRecord = {
+    id: `water-${Date.now().toString(36)}-${tree.waterHistory.length}`,
+    nodeId,
+    nodeTitle: target.title,
+    vitalityBefore: preview.vitalityBefore,
+    vitalityAfter: preview.vitalityAfter,
+    waterCountBefore: preview.waterCountBefore,
+    waterCountAfter: preview.waterCountAfter,
+    sproutedNodeId,
+    sproutedNodeTitle,
+    undone: false,
+    createdAt: new Date().toLocaleString('zh-CN', { hour12: false })
+  };
+
+  return { ...tree, nodes, waterHistory: [...tree.waterHistory, record] };
+}
+
+/**
+ * 撤销最近一次未撤销的浇水：回滚生命力与浇水次数；
+ * 若该次浇水催生了奇遇枝桠，则一并移除该枝桠。不可变更新。
+ * 没有可撤销的浇水时原样返回。
+ */
+export function undoLastWater(tree: CounterfactualTree): CounterfactualTree {
+  const lastIndex = (() => {
+    for (let i = tree.waterHistory.length - 1; i >= 0; i--) {
+      if (!tree.waterHistory[i].undone) return i;
+    }
+    return -1;
+  })();
+  if (lastIndex < 0) return tree;
+
+  const record = tree.waterHistory[lastIndex];
+  const target = tree.nodes[record.nodeId];
+  if (!target) return tree;
+
+  const restoredNode: LifeNode = {
+    ...target,
+    vitality: record.vitalityBefore,
+    waterCount: record.waterCountBefore,
+    childrenIds: target.childrenIds.filter(id => id !== record.sproutedNodeId)
+  };
+
+  const nodes: Record<string, LifeNode> = { ...tree.nodes, [record.nodeId]: restoredNode };
+  if (record.sproutedNodeId) {
+    delete nodes[record.sproutedNodeId];
+  }
+
+  const waterHistory = tree.waterHistory.map((r, i) =>
+    i === lastIndex ? { ...r, undone: true } : r
+  );
+
+  return { ...tree, nodes, waterHistory };
 }
 
 export function pruneBranch(tree: CounterfactualTree, nodeId: string): CounterfactualTree {

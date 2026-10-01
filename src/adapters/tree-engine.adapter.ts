@@ -1,7 +1,10 @@
-import { CounterfactualTree, LifeSpecimen } from '../core/models';
+import { CounterfactualTree, LifeSpecimen, WaterPreview, WaterCommitResult } from '../core/models';
 import {
   buildCounterfactualTree,
-  waterBranch,
+  previewWater,
+  commitWater,
+  canUndoWater,
+  undoWater,
   pruneBranch,
   harvestSpecimen
 } from '../core/tree-engine';
@@ -12,8 +15,20 @@ export class TreeEngineAdapter implements TreeEnginePort {
     return buildCounterfactualTree(assumption);
   }
 
-  water(tree: CounterfactualTree, nodeId: string): CounterfactualTree {
-    return waterBranch(tree, nodeId);
+  previewWater(tree: CounterfactualTree, nodeId: string): WaterPreview | null {
+    return previewWater(tree, nodeId);
+  }
+
+  commitWater(tree: CounterfactualTree, nodeId: string): WaterCommitResult {
+    return commitWater(tree, nodeId);
+  }
+
+  canUndoWater(tree: CounterfactualTree, operationId: string): { ok: boolean; reason?: string } {
+    return canUndoWater(tree, operationId);
+  }
+
+  undoWater(tree: CounterfactualTree, operationId: string): CounterfactualTree {
+    return undoWater(tree, operationId);
   }
 
   prune(tree: CounterfactualTree, nodeId: string): CounterfactualTree {

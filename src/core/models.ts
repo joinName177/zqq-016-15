@@ -37,4 +37,47 @@ export interface CounterfactualTree {
   nodes: Record<string, LifeNode>;
   createdAt: string;
   specimens: LifeSpecimen[];
+  operations: WaterOperation[];
+}
+
+/**
+ * 浇水操作记录：每次“确认浇水”后写入 tree.operations，
+ * 作为撤销（逆操作）的唯一依据。
+ */
+export interface WaterOperation {
+  id: string;
+  nodeId: string;
+  nodeTitle: string;
+  eraLabel: string;
+  vitalityBefore: number;
+  vitalityAfter: number;
+  vitalityGain: number;
+  waterCountBefore: number;
+  waterCountAfter: number;
+  /** 本次浇水若萌发了奇遇枝桠，记录其节点 id，撤销时一并移除 */
+  sproutId?: string;
+  sproutTitle?: string;
+  wateredAt: string;
+}
+
+/** 确认前的预览：仅描述预计变化，不持有任何状态，取消即可丢弃 */
+export interface WaterPreview {
+  nodeId: string;
+  nodeTitle: string;
+  eraLabel: string;
+  categoryName: string;
+  vitalityBefore: number;
+  vitalityAfter: number;
+  vitalityGain: number;
+  waterCountBefore: number;
+  waterCountAfter: number;
+  /** 本次浇水恰好到达第 2 次且节点仍可分叉时，预计萌发奇遇枝桠 */
+  willSprout: boolean;
+  sproutTitle: string;
+}
+
+/** 确认提交后的结果：新树与本次写入的操作记录（节点无效时缺失） */
+export interface WaterCommitResult {
+  tree: CounterfactualTree;
+  operation?: WaterOperation;
 }

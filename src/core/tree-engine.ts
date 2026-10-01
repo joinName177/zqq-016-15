@@ -2,7 +2,10 @@ import {
   CounterfactualTree,
   LifeNode,
   LifeSpecimen,
-  LifeCategory
+  LifeCategory,
+  WaterPreview,
+  WaterOperation,
+  WaterCommitResult
 } from './models';
 
 const ERA_LABELS = ['起点分歧点', '+1年·涟漪微漾', '+3年·风向转折', '+5年·航道分野', '+10年·宿命标本'];
@@ -147,41 +150,163 @@ export function buildCounterfactualTree(assumption: string): CounterfactualTree 
     rootId,
     nodes,
     createdAt: new Date().toLocaleDateString('zh-CN'),
-    specimens: []
+    specimens: [],
+    operations: []
   };
 }
 
-export function waterBranch(tree: CounterfactualTree, nodeId: string): CounterfactualTree {
+const WATER_VITALITY_STEP = 20;
+const SPROUT_WATER_COUNT = 2;
+const SPROUT_TITLE = '因浇水而盛放的意外分支：突发奇遇';
+const SPROUT_DESCRIPTION =
+  '生命在持续的滋养中孕育出意想不到的转折——一位旅人带来的消息彻底重构了你的人生构想。';
+const SPROUT_QUOTE = '“当你足够专注地灌溉，奇迹就会在干涸的断枝上抽芽。”';
+
+/** 本次浇水是否会（且能够）萌发奇遇枝桠 */
+function willGrowSprout(target: LifeNode): boolean {
+  return (
+    target.waterCount + 1 === SPROUT_WATER_COUNT &&
+    target.layerIndex < 3 &&
+    target.childrenIds.length < 2
+  );
+}
+
+/**
+ * 浇水预览：纯计算，不修改入参树。
+ * 用于确认框展示“目标节点 + 预计变化”；用户取消时直接丢弃返回值即可，
+ * 树上不残留任何半完成状态。
+ */
+export function previewWater(tree: CounterfactualTree, nodeId: string): WaterPreview | null {
   const target = tree.nodes[nodeId];
-  if (!target) return tree;
+  if (!target || target.isPruned) return null;
 
-  target.vitality = Math.min(100, target.vitality + 20);
-  target.waterCount += 1;
+  const vitalityBefore = target.vitality;
+  const vitalityAfter = Math.min(100, vitalityBefore + WATER_VITALITY_STEP);
+  const waterCountBefore = target.waterCount;
 
-  // If watered 2 times and in layer 1 or 2, sprout a serendipity branch!
-  if (target.waterCount === 2 && target.layerIndex < 3 && target.childrenIds.length < 2) {
-    const newId = `node-${target.layerIndex + 1}-twist-${Date.now().toString(36).slice(-4)}`;
-    const nextLayer = target.layerIndex + 1;
-    const cat: LifeCategory = 'twist';
-    tree.nodes[newId] = {
-      id: newId,
-      parentId: target.id,
-      layerIndex: nextLayer,
-      eraLabel: `${ERA_LABELS[nextLayer]}·奇遇枝桠`,
-      title: '因浇水而盛放的意外分支：突发奇遇',
-      scenarioDescription: '生命在持续的滋养中孕育出意想不到的转折——一位旅人带来的消息彻底重构了你的人生构想。',
-      vitality: 88,
-      isPruned: false,
-      waterCount: 0,
-      category: cat,
-      categoryName: CATEGORY_MAP[cat].name,
-      color: CATEGORY_MAP[cat].color,
-      specimenQuote: '“当你足够专注地灌溉，奇迹就会在干涸的断枝上抽芽。”',
-      childrenIds: []
-    };
-    target.childrenIds.push(newId);
+  return {
+    nodeId: target.id,
+    nodeTitle: target.title,
+    eraLabel: target.eraLabel,
+    categoryName: target.categoryName,
+    vitalityBefore,
+    vitalityAfter,
+    vitalityGain: vitalityAfter - vitalityBefore,
+    waterCountBefore,
+    waterCountAfter: waterCountBefore + 1,
+    willSprout: willGrowSprout(target),
+    sproutTitle: SPROUT_TITLE
+  };
+}
+
+/** 构造奇遇枝桠节点（不写入树，由调用方挂接） */
+function createSproutNode(parent: LifeNode): LifeNode {
+  const nextLayer = parent.layerIndex + 1;
+  return {
+    id: `node-${nextLayer}-twist-${Date.now().toString(36).slice(-4)}`,
+    parentId: parent.id,
+    layerIndex: nextLayer,
+    eraLabel: `${ERA_LABELS[nextLayer]}·奇遇枝桠`,
+    title: SPROUT_TITLE,
+    scenarioDescription: SPROUT_DESCRIPTION,
+    vitality: 88,
+    isPruned: false,
+    waterCount: 0,
+    category: 'twist',
+    categoryName: CATEGORY_MAP.twist.name,
+    color: CATEGORY_MAP.twist.color,
+    specimenQuote: SPROUT_QUOTE,
+    childrenIds: []
+  };
+}
+
+/**
+ * 确认浇水：原子地更新树并追加操作记录。
+ * 全程同步执行——要么完成“节点变化 + 可能的新枝桠 + 操作记录”全部步骤，
+ * 要么节点无效直接原样返回，绝不留下半完成状态。
+ */
+export function commitWater(tree: CounterfactualTree, nodeId: string): WaterCommitResult {
+  const target = tree.nodes[nodeId];
+  if (!target || target.isPruned) {
+    return { tree };
   }
 
+  const vitalityBefore = target.vitality;
+  const waterCountBefore = target.waterCount;
+  const sprout = willGrowSprout(target) ? createSproutNode(target) : undefined;
+
+  target.vitality = Math.min(100, vitalityBefore + WATER_VITALITY_STEP);
+  target.waterCount = waterCountBefore + 1;
+  if (sprout) {
+    tree.nodes[sprout.id] = sprout;
+    target.childrenIds.push(sprout.id);
+  }
+
+  const operation: WaterOperation = {
+    id: `water-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    nodeId: target.id,
+    nodeTitle: target.title,
+    eraLabel: target.eraLabel,
+    vitalityBefore,
+    vitalityAfter: target.vitality,
+    vitalityGain: target.vitality - vitalityBefore,
+    waterCountBefore,
+    waterCountAfter: target.waterCount,
+    sproutId: sprout?.id,
+    sproutTitle: sprout ? sprout.title : undefined,
+    wateredAt: new Date().toLocaleString('zh-CN', { hour12: false })
+  };
+
+  tree.operations.push(operation);
+  return { tree: { ...tree }, operation };
+}
+
+/**
+ * 某条浇水记录当前是否允许撤销（不实际执行）。
+ * 仅允许撤销“最近一次”浇水；若此后节点 / 新生枝桠已被修剪，则不可撤销。
+ */
+export function canUndoWater(
+  tree: CounterfactualTree,
+  operationId: string
+): { ok: boolean; reason?: string } {
+  const op = tree.operations.find(o => o.id === operationId);
+  if (!op) return { ok: false, reason: '操作记录不存在' };
+  if (tree.operations[tree.operations.length - 1]?.id !== operationId) {
+    return { ok: false, reason: '只能撤销最近一次浇水' };
+  }
+  const target = tree.nodes[op.nodeId];
+  if (!target) return { ok: false, reason: '目标节点已不存在' };
+  if (target.isPruned) return { ok: false, reason: '该分支已被修剪，无法撤销' };
+  if (op.sproutId) {
+    const sprout = tree.nodes[op.sproutId];
+    if (!sprout) return { ok: false, reason: '新生枝桠已不存在，无法撤销' };
+    if (sprout.isPruned) return { ok: false, reason: '新生枝桠已被修剪，无法撤销' };
+  }
+  return { ok: true };
+}
+
+/**
+ * 撤销浇水：按操作记录把树精确还原到浇水之前。
+ * 撤销是同步且原子的；守卫不通过时原样返回树，不做任何修改。
+ */
+export function undoWater(tree: CounterfactualTree, operationId: string): CounterfactualTree {
+  const guard = canUndoWater(tree, operationId);
+  if (!guard.ok) return tree;
+
+  const opIndex = tree.operations.findIndex(o => o.id === operationId);
+  const op = tree.operations[opIndex];
+
+  const target = tree.nodes[op.nodeId];
+  target.vitality = op.vitalityBefore;
+  target.waterCount = op.waterCountBefore;
+
+  if (op.sproutId) {
+    // 从父节点 childrenIds 摘除，再删除节点本身
+    target.childrenIds = target.childrenIds.filter(id => id !== op.sproutId);
+    delete tree.nodes[op.sproutId];
+  }
+
+  tree.operations.splice(opIndex, 1);
   return { ...tree };
 }
 
